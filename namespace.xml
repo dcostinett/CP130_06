@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<namespace>
+    <entry jndi-name="jdbc/AccountDb">
+        <reference classname="com.mysql.jdbc.jdbc2.optional.MysqlDataSource"
+                   factoryname="com.mysql.jdbc.jdbc2.optional.MysqlDataSourceFactory">
+            <address name="port" value="3306"/>
+            <address name="serverName" value="localhost"/>
+            <address name="databaseName" value="accountDB"/>
+            <address name="explicitUrl" value="false"/>
+            <address name="user" value="student"/>
+            <address name="password" value="student"/>
+        </reference>
+    </entry>
+</namespace>

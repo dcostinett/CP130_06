@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+
+    <!-- Bean implmenting edu.uw.ext.framework.account.AccountFactory -->
+    <bean id="AccountFactory" class="edu.uw.danco.account.AccountFactoryImpl" />
+
+    <!-- Bean implmenting edu.uw.ext.framework.account.Address -->
+    <bean id="Address" class="edu.uw.danco.account.AddressImpl" />
+
+    <!-- Bean implmenting edu.uw.ext.framework.account.CreditCard -->
+    <bean id="CreditCard" class="edu.uw.danco.account.CreditCardImpl" />
+
+    <!-- Bean implementing edu.uw.ext.framework.account.Account -->
+    <bean id="Account" class="edu.uw.danco.account.AccountImpl" />
+
+    <!-- Bean implementing edu.uw.ext.framework.account.AccountManagerFactory -->
+    <bean id="AccountManagerFactory" class="edu.uw.danco.account.AccountManagerFactoryImpl" />
+
+    <!-- Bean implementing edu.uw.ext.framework.broker.BrokerFactory -->
+    <bean id="BrokerFactory" class="edu.uw.danco.broker.BrokerFactoryImpl"/>
+
+    <!-- Bean implementing edu.uw.ext.framework.account.DaoFactory -->
+    <bean id="DaoFactory" class="edu.uw.ext.framework.dao.XmlDaoFactory"/>
+</beans>

@@ -15,7 +15,7 @@ import edu.uw.ext.framework.order.Order;
 public class MoveToMarketQueueProcessor implements OrderProcessor {
 
     /** The queue for orders */
-    private OrderQueue<Order> marketQueue;
+    private final OrderQueue<Order> marketQueue;
 
 
     /**

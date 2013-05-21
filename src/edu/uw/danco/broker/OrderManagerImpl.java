@@ -8,12 +8,16 @@ import edu.uw.ext.framework.order.StopBuyOrder;
 import edu.uw.ext.framework.order.StopSellOrder;
 
 import java.util.Comparator;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Created with IntelliJ IDEA.
  * User: dcostinett
  * Date: 4/28/13
  * Time: 2:50 PM
+ *
+ * Maintains queues to different types of orders and requests the execution of orders when price conditions
+ * allow their execution.
  */
 public class OrderManagerImpl implements OrderManager {
 
@@ -44,14 +48,18 @@ public class OrderManagerImpl implements OrderManager {
      * @param symbol - the ticker symbol of the stock this instance is manage orders for
      * @param price - the current price of stock to be managed
      */
-    public OrderManagerImpl(final String symbol, final int price) {
+    public OrderManagerImpl(final String symbol, final int price, final ExecutorService dispatcher) {
         this.symbol = symbol;
 
         stopBuyOrderFilter = new StopBuyOrderDispatchFilter(price);
         stopSellOrderFilter = new StopSellOrderDispatchFilter(price);
 
-        stopBuyOrderQueue = new OrderQueueImpl<StopBuyOrder>(StopBuyOrderComparator.INSTANCE, stopBuyOrderFilter);
-        stopSellOrderQueue = new OrderQueueImpl<StopSellOrder>(StopSellOrderComparator.INSTANCE, stopSellOrderFilter);
+        stopBuyOrderQueue = new OrderQueueImpl<StopBuyOrder>(StopBuyOrderComparator.INSTANCE,
+                                                                    stopBuyOrderFilter,
+                                                                    dispatcher);
+        stopSellOrderQueue = new OrderQueueImpl<StopSellOrder>(StopSellOrderComparator.INSTANCE,
+                                                                      stopSellOrderFilter,
+                                                                      dispatcher);
     }
 
 
@@ -118,7 +126,7 @@ public class OrderManagerImpl implements OrderManager {
 
 
     /**
-     * Set the StopBuyrderFilter
+     * Set the StopBuyOrderFilter
      * @param stopBuyOrderFilter - the filter
      */
     protected void 	setStopBuyOrderFilter(final OrderDispatchFilter<Integer,StopBuyOrder> stopBuyOrderFilter) {
@@ -127,7 +135,7 @@ public class OrderManagerImpl implements OrderManager {
 
 
     /**
-     * Set t he StopBuyOrder Queue
+     * Set the StopBuyOrder Queue
      * @param stopBuyOrderQueue the queue
      */
     protected void setStopBuyOrderQueue(final OrderQueue<StopBuyOrder> stopBuyOrderQueue) {

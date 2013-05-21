@@ -69,7 +69,7 @@ public class AccountManagerImpl implements AccountManager {
      */
     @Override
     public Account getAccount(final String accountName) throws AccountException {
-        Account account = dao.getAccount(accountName);
+        final Account account = dao.getAccount(accountName);
 
         if (account != null) {
             account.registerAccountManager(this);

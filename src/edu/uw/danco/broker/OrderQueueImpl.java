@@ -6,9 +6,11 @@ import edu.uw.ext.framework.broker.OrderQueue;
 import edu.uw.ext.framework.order.Order;
 
 import java.util.Comparator;
-import java.util.TreeSet;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -17,7 +19,8 @@ import java.util.logging.Logger;
  * Date: 4/28/13
  * Time: 3:05 PM
  *
- * A simple OrderQueue implementation backed by a TreeSet.
+ * A simple OrderQueue implementation backed by a BlockingQueue.
+ *
  */
 public final class OrderQueueImpl<E extends Order> implements OrderQueue<E>, Runnable {
 
@@ -25,7 +28,8 @@ public final class OrderQueueImpl<E extends Order> implements OrderQueue<E>, Run
     private static final Logger LOGGER = Logger.getLogger(OrderQueueImpl.class.getName());
 
     /** Backing store for orders */
-    private TreeSet<E> queue;
+    private BlockingQueue<E> queue;
+    // can continue to use a TreeSt
 
     /** The processor used during order processing */
     private OrderProcessor orderProcessor;
@@ -34,17 +38,26 @@ public final class OrderQueueImpl<E extends Order> implements OrderQueue<E>, Run
     private OrderDispatchFilter<?, E> filter;
 
     /** Dispatcher that handles dispatching orders in an executor thread */
-    private ExecutorService dispatcher = Executors.newSingleThreadExecutor();
+    private final ExecutorService dispatcher;
+
+    // ** Lock to protect access to queue while modifying queue data */
+    private final Lock queuelock = new ReentrantLock();
+
+    /** Boolean to determine if the order getting processed has been queued to the active pool */
+    private AtomicBoolean isQueuedToPool = new AtomicBoolean(false);
 
     /**
      * Constructor
      * @param orderComparator - Comparator to be used for ordering
      * @param filter - the dispatch filter used to control dispatching from this queue
      */
-    public OrderQueueImpl(final Comparator<E> orderComparator, final OrderDispatchFilter<?, E> filter) {
-        queue = new TreeSet<E>(orderComparator);
+    public OrderQueueImpl(final Comparator<E> orderComparator,
+                          final OrderDispatchFilter<?, E> filter,
+                          final ExecutorService dispatcher) {
+        queue = new PriorityBlockingQueue<E>(20, orderComparator);
         this.filter = filter;
-        filter.setOrderQueue(this);
+        this.dispatcher = dispatcher;
+        this.filter.setOrderQueue(this);
     }
 
 
@@ -52,10 +65,11 @@ public final class OrderQueueImpl<E extends Order> implements OrderQueue<E>, Run
      * Constructor
      * @param filter - the dispatch filter used to control dispatching from this queue
      */
-    public OrderQueueImpl(final OrderDispatchFilter<?, E> filter) {
-        queue = new TreeSet<E>();
+    public OrderQueueImpl(final OrderDispatchFilter<?, E> filter, final ExecutorService dispatcher) {
+        queue = new PriorityBlockingQueue<E>();
         this.filter = filter;
-        filter.setOrderQueue(this);
+        this.dispatcher = dispatcher;
+        this.filter.setOrderQueue(this);
     }
 
 
@@ -65,7 +79,14 @@ public final class OrderQueueImpl<E extends Order> implements OrderQueue<E>, Run
      */
     @Override
     public void enqueue(final E order) {
-        queue.add(order);
+        queuelock.lock();
+        try {
+            if (!queue.contains(order)) {
+                queue.add(order);
+            }
+        } finally {
+            queuelock.unlock();
+        }
         dispatchOrders();
     }
 
@@ -78,11 +99,19 @@ public final class OrderQueueImpl<E extends Order> implements OrderQueue<E>, Run
     @Override
     public E dequeue() {
         E order = null;
-        if (!queue.isEmpty()) {
-            if (filter.check(queue.first())) {
-                order = queue.first();
-                queue.remove(order);
+        queuelock.lock();
+        try {
+            if (!queue.isEmpty()) {
+                if (filter != null && filter.check(queue.peek())) {
+                    try {
+                        order = queue.take();
+                    } catch (InterruptedException e) {
+                        LOGGER.log(Level.WARNING, "Interrupted waiting for queue element", e);
+                    }
+                }
             }
+        } finally {
+            queuelock.unlock();
         }
         return order;
     }
@@ -94,7 +123,14 @@ public final class OrderQueueImpl<E extends Order> implements OrderQueue<E>, Run
      */
     @Override
     public void dispatchOrders() {
-        dispatcher.execute(this);
+        queuelock.lock();
+        try {
+            if (isQueuedToPool.compareAndSet(false, true)) {
+                dispatcher.execute(this);
+            }
+        } finally {
+            queuelock.unlock();
+        }
     }
 
 
@@ -104,7 +140,7 @@ public final class OrderQueueImpl<E extends Order> implements OrderQueue<E>, Run
      */
     @Override
     public void setOrderProcessor(final OrderProcessor proc) {
-        this.orderProcessor = proc;
+        orderProcessor = proc;
     }
 
 
@@ -113,12 +149,22 @@ public final class OrderQueueImpl<E extends Order> implements OrderQueue<E>, Run
      */
     @Override
     public void run() {
-        Order order = dequeue();
-        while (order != null) {
-            if (orderProcessor != null) {
-                orderProcessor.process(order);
+        while (true) {
+            queuelock.lock();
+            Order order;
+            try {
+                order = dequeue();
+                if (order == null) {
+                    isQueuedToPool.set(false);
+                    break;
+                }
+            } finally {
+                queuelock.unlock();
             }
-            order = dequeue();
+            OrderProcessor op = orderProcessor;
+            if (op != null) {
+                op.process(order);
+            }
         }
     }
 }

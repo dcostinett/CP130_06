@@ -51,7 +51,11 @@ public class StockTraderOrderProcessor implements OrderProcessor {
             try {
                 accountManager.getAccount(order.getAccountId())
                         .reflectOrder(order, exchange.getQuote(order.getStockTicker()).getPrice());
-                exchange.executeTrade(order);
+                try {
+                    exchange.executeTrade(order);
+                } finally {
+
+                }
             } catch (AccountException e) {
                 LOGGER.log(Level.SEVERE, "Unable to get account for " + order.getAccountId(), e);
             }

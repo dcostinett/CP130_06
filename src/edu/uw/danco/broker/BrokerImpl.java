@@ -14,6 +14,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -45,6 +48,9 @@ public class BrokerImpl implements Broker, ExchangeListener {
     /** The market order queue */
     private OrderQueue<Order> marketOrders;
 
+    /** The ExecutorService that will process the dispatched orders */
+    final ExecutorService dispatcher = Executors.newFixedThreadPool(32);
+
 
     /**
      * Constructor for sub classes
@@ -66,7 +72,7 @@ public class BrokerImpl implements Broker, ExchangeListener {
 
         final OrderProcessor processor = new StockTraderOrderProcessor(acctManager, exchange);
         marketDispatchFilter = new MarketDispatchFilter(exchange.isOpen());
-        marketOrders = new OrderQueueImpl<Order>(marketDispatchFilter);
+        marketOrders = new OrderQueueImpl<Order>(marketDispatchFilter, dispatcher);
         marketOrders.setOrderProcessor(processor);
 
         String[] stockTickers = exchange.getTickers();
@@ -75,10 +81,11 @@ public class BrokerImpl implements Broker, ExchangeListener {
         final OrderProcessor orderProc = new MoveToMarketQueueProcessor(marketOrders);
         for (String stockTicker : stockTickers) {
             StockQuote quote = exchange.getQuote(stockTicker);
-            OrderManager orderManager = new OrderManagerImpl(quote.getTicker(), quote.getPrice());
+            OrderManager orderManager = new OrderManagerImpl(quote.getTicker(), quote.getPrice(), dispatcher);
             orderManager.setOrderProcessor(orderProc);
             orderManagers.put(stockTicker, orderManager);
         }
+        // think about making a view of the HashMap an immutable map?
 
         exchange.addExchangeListener(this);     //when adding self as listener, always do it as the last thing.
     }
@@ -238,10 +245,14 @@ public class BrokerImpl implements Broker, ExchangeListener {
     @Override
     public void close() throws BrokerException {
         try {
+            dispatcher.shutdown();
+            try {
+                dispatcher.awaitTermination(1, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                LOGGER.log(Level.WARNING, "Queue was not shutdown within 1 econd.", e);
+            }
             exchange.removeExchangeListener(this);
             acctManager.close();
-            for (OrderManager manager : orderManagers.values()) {
-            }
             orderManagers = null;
         } catch (AccountException e) {
             LOGGER.log(Level.WARNING, "Unable to close account", e);

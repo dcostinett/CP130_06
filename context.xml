@@ -25,4 +25,10 @@
 
     <!-- Bean implementing edu.uw.ext.framework.account.DaoFactory -->
     <bean id="DaoFactory" class="edu.uw.ext.framework.dao.XmlDaoFactory"/>
+
+    <!-- Bean implementing edu.uw.ext.framework.account.DaoFactory -->
+    <bean id="NetworkExchangeAdapterFactory" class="edu.uw.danco.exchange.ExchangeNetworkAdapterFactory"/>
+
+    <!-- Bean implementing edu.uw.ext.framework.account.DaoFactory -->
+    <bean id="NetworkExchangeProxyFactory" class="edu.uw.danco.exchange.ExchangeNetworkProxyFactory"/>
 </beans>

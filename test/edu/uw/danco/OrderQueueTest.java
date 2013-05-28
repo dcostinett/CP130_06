@@ -15,6 +15,9 @@ import edu.uw.ext.framework.order.StopSellOrder;
 
 import test.AbstractOrderQueueTest;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 /**
  * Concrete subclass of AbstractQueueTest, provides implementations of the 
  * createStopBuyOrderQueue, createStopSellOrderQueue and createAnyOrderQueue
@@ -28,15 +31,17 @@ public class OrderQueueTest extends AbstractOrderQueueTest {
      * order StopBuyOrders.
      *
      * @param filter the OrderDispatch filter to be used
-     * 
+     *
      * @return a new OrderQueue instance
      */
     protected final OrderQueue<StopBuyOrder> createStopBuyOrderQueue(
-                        final OrderDispatchFilter<?, StopBuyOrder> filter) {
+                                                                            final OrderDispatchFilter<?, StopBuyOrder> filter) {
         /*********************************************************************
          * This needs to be an instance of your OrderQueue and Comparator.   *
          *********************************************************************/
-        return new OrderQueueImpl<StopBuyOrder>(StopBuyOrderComparator.INSTANCE, filter);
+        return new OrderQueueImpl<StopBuyOrder>(StopBuyOrderComparator.INSTANCE,
+                                                       filter,
+                                                       Executors.newSingleThreadExecutor());
     }
 
     /**
@@ -45,31 +50,33 @@ public class OrderQueueTest extends AbstractOrderQueueTest {
      * order StopSellOrders.
      *
      * @param filter the OrderDispatch filter to be used
-     * 
+     *
      * @return a new OrderQueue instance
      */
     protected final OrderQueue<StopSellOrder> createStopSellOrderQueue(
-                          final OrderDispatchFilter<?, StopSellOrder> filter) {
+                                                                              final OrderDispatchFilter<?, StopSellOrder> filter) {
         /*********************************************************************
          * This needs to be an instance of your OrderQueue and Comparator.   *
          *********************************************************************/
-        return new OrderQueueImpl<StopSellOrder>(StopSellOrderComparator.INSTANCE, filter);
+        return new OrderQueueImpl<StopSellOrder>(StopSellOrderComparator.INSTANCE,
+                                                        filter,
+                                                        Executors.newSingleThreadExecutor());
     }
-    
+
     /**
      * Creates an instance of "my" OrderQueue implementation class, the queue
      * will order the Orders according to their natural ordering.
      *
      * @param filter the OrderDispatch filter to be used
-     * 
+     *
      * @return a new OrderQueue instance
      */
     protected final OrderQueue<Order> createAnyOrderQueue(
-                            final OrderDispatchFilter<?, Order> filter) {
+                                                                 final OrderDispatchFilter<?, Order> filter) {
         /*********************************************************************
          * This needs to be an instance of your OrderQueue.                  *
          *********************************************************************/
-        return new OrderQueueImpl<Order>(filter);
+        return new OrderQueueImpl<Order>(filter, Executors.newFixedThreadPool(8));
     }
 
 }

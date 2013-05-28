@@ -1,5 +1,7 @@
 package edu.uw.danco.exchange;
 
+import java.security.PrivateKey;
+
 /**
  * Created with IntelliJ IDEA.
  * User: dcostinett
@@ -11,11 +13,12 @@ package edu.uw.danco.exchange;
  *
  * Events are one way messages sent from the exchange to the broker(s).
  * The protocol supports the following events:
- * Event: [OPEN_EVNT]
+ * Event: [OPEN_EVENT]
  * -
- * Event: [CLOSED_EVNT]
+ * Event: [CLOSED_EVENT]
  * -
- * Event: [PRICE_CHANGE_EVNT][ELEMENT_DELIMITER]symbol[ELEMENT_DELIMITER]price
+ * Event: [PRICE_CHANGE_EVENT][ELEMENT_DELIMITER]symbol[ELEMENT_DELIMITER]price
+ *
  *
  * Commands conform to a request/response model where requests are sent from a broker and the result is a response
  * sent to the requesting broker from the exchange.
@@ -36,4 +39,26 @@ package edu.uw.danco.exchange;
 
  */
 public enum ProtocolConstants {
+    OPEN_EVENT("OPEN_EVENT"),
+    CLOSED_EVENT("CLOSED_EVENT"),
+    PRICE_CHANGE_EVENT("PRICE_CHANGE_EVENT"),
+
+    EXECUTE_TRADE_CMD("EXECUTE_TRADE"),
+    GET_QUOTE_CMD("GET_QUOTE"),
+    GET_STATE_CMD("GET_STATE"),
+    GET_TICKERS_CMD("GET_TICKERS"),
+
+    ELEMENT_DELIMITER(":");
+
+
+    private final String value;
+
+    private ProtocolConstants(String value) {
+        this.value = value;
+    }
+
+    @Override
+    public String toString() {
+        return value;
+    }
 }

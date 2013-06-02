@@ -1,5 +1,6 @@
 package edu.uw.danco.exchange;
 
+import edu.uw.danco.exchange.operations.GetQuote;
 import edu.uw.ext.framework.exchange.ExchangeListener;
 import edu.uw.ext.framework.exchange.StockExchange;
 import edu.uw.ext.framework.exchange.StockQuote;
@@ -37,14 +38,8 @@ public class ExchangeNetworkProxy implements StockExchange {
     /** the multicast ip address to connect to */
     private final String eventIpAddress;
 
-    /** the multicast port to connect to */
-    private final int eventPort;
-
     /** the address the exchange accepts requests on */
     private final String cmdIpAddress;
-
-    /** the address the exchange accepts requests on */
-    private final int cmdPort;
 
     /** Address for the exchange */
     private InetAddress cmdAddress;
@@ -61,6 +56,8 @@ public class ExchangeNetworkProxy implements StockExchange {
     /** The event multicast socket */
     private MulticastSocket eventMultiSock = null;
 
+    /** The event processor */
+    private NetEventProcessor eventProcessor;
 
     /**
      *
@@ -74,19 +71,15 @@ public class ExchangeNetworkProxy implements StockExchange {
                                 final String cmdIpAddress,
                                 final int cmdPort) {
         this.eventIpAddress = eventIpAddress;
-        this.eventPort = eventPort;
         this.cmdIpAddress = cmdIpAddress;
-        this.cmdPort = cmdPort;
 
         try {
             eventGroup = InetAddress.getByName(eventIpAddress);
             eventMultiSock = new MulticastSocket(eventPort);
-            eventMultiSock.joinGroup(eventGroup);
+            eventProcessor = new NetEventProcessor(eventPort, eventGroup, eventMultiSock, cmdIpAddress, cmdPort);
 
             cmdAddress = InetAddress.getByName(cmdIpAddress);
             cmdSock = new Socket(cmdAddress, cmdPort);
-
-            adapter = new ExchangeNetworkAdapter(this, eventIpAddress, eventPort, cmdPort);
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Unable to connect to command socket.", e);
         } finally {
@@ -134,25 +127,33 @@ public class ExchangeNetworkProxy implements StockExchange {
         // send the GET_QUOTE_CMD command
         StockQuote quote = null;
 
-        byte[] buf = new byte[1024];
-        DatagramPacket packet = new DatagramPacket(buf, buf.length,
-                                                          cmdAddress, cmdPort);
-        byte[] bytes = NetEventProcessor.GetQuoteFor(ticker).getBytes();
-        packet.setData(bytes);
-        packet.setLength(bytes.length);
+//        byte[] buf = new byte[1024];
+//        DatagramPacket packet = new DatagramPacket(buf, buf.length,
+//                                                          cmdAddress, cmdPort);
+//        byte[] bytes = NetEventProcessor.GetQuoteFor(ticker).getBytes();
+//        packet.setData(bytes);
+//        packet.setLength(bytes.length);
+//        try {
+//            cmdSock.getOutputStream().write(bytes);
+//
+//            byte[] receiveBuffer = new byte[128];
+//            cmdSock.getInputStream().read(receiveBuffer);
+//
+//            DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+//            Scanner scanner = new Scanner(new String(receivePacket.getData(), 0, receivePacket.getLength()));
+//            int price = scanner.nextInt();
+//            quote = new StockQuote(ticker, price);
+//        } catch (IOException e) {
+//            LOGGER.log(Level.SEVERE, "Unable to send getQuote to exchangeServerIp", e);
+//        }
+        eventProcessor.enqueue(new GetQuote(ticker));
         try {
-            cmdSock.getOutputStream().write(bytes);
-
-            byte[] receiveBuffer = new byte[128];
-            cmdSock.getInputStream().read(receiveBuffer);
-
-            DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
-            Scanner scanner = new Scanner(new String(receivePacket.getData(), 0, receivePacket.getLength()));
-            int price = scanner.nextInt();
-            quote = new StockQuote(ticker, price);
-        } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Unable to send getQuote to exchangeServerIp", e);
+            ExchangeOperation operation = (ExchangeOperation) eventProcessor.call();
+            quote = new StockQuote(ticker, Integer.valueOf(operation.getResult()));
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Exception trying to call the event processor", e);
         }
+
 
         return quote;
     }

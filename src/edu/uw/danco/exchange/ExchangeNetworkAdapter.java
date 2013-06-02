@@ -1,11 +1,14 @@
 package edu.uw.danco.exchange;
 
+import com.sun.xml.internal.fastinfoset.alphabet.BuiltInRestrictedAlphabets;
 import edu.uw.ext.framework.exchange.ExchangeAdapter;
 import edu.uw.ext.framework.exchange.ExchangeEvent;
 import edu.uw.ext.framework.exchange.StockExchange;
+import edu.uw.ext.framework.exchange.StockQuote;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.*;
+import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -48,8 +51,8 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
     /** The multicast group */
     private InetAddress group = null;
 
-    /** The Socket used to listen for commands */
-    private ServerSocket serverSocket;
+    /** Listens for commands to send to the exchange */
+    private CommandListener listener;
 
     /**
      * Server event processing consists of the ExchangeNetworkAdapter registering as an ExchangeListener
@@ -76,7 +79,8 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
             multiSock = new MulticastSocket();
             multiSock.joinGroup(group);
 
-            serverSocket = new ServerSocket(commandPort);
+            listener = new CommandListener(exchange, commandPort);
+            listener.start();
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Unable to open socket", e);
         }
@@ -93,6 +97,7 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
         if (multiSock != null) {
             try {
                 multiSock.leaveGroup(InetAddress.getByName(multicastIp));
+                listener.close();
             } catch (IOException e) {
                 LOGGER.log(Level.WARNING, "Exception trying to leave multicast group", e);
             } finally {
@@ -152,6 +157,121 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
             multiSock.send(packet);
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, String.format("Unable to multicast %s event", event.getEventType()), e);
+        }
+    }
+
+
+    /**
+     *
+     */
+    private static class CommandListener extends Thread {
+
+        /** The logger */
+        private static final Logger logger = Logger.getLogger(CommandListener.class.getName());
+
+        /** The Socket used to listen for commands */
+        private ServerSocket serverSocket;
+
+        /** Reference to the real exchange */
+        private final StockExchange exchange;
+
+        /** The port to listen to commands on */
+        private final int commandPort;
+
+        /** The socket encapsulating a client connection. */
+        private Socket client;
+
+        private CommandListener(StockExchange exchange, int commandPort) {
+            this.exchange = exchange;
+            this.commandPort = commandPort;
+
+            try {
+                serverSocket = new ServerSocket(commandPort);
+            } catch (IOException e) {
+                logger.log(Level.SEVERE, "Unable to open command port.", e);
+            }
+        }
+
+        @Override
+        public void run() {
+            while (!serverSocket.isClosed()) {
+                logger.info("Listening for commands");
+                try {
+                    client = serverSocket.accept();
+                    final CommandHandler handler = new CommandHandler(exchange, client);
+                    final Thread handlerThread = new Thread(handler);
+                    handlerThread.start();
+                } catch (IOException e) {
+                    logger.log(Level.WARNING, "Exception listening on server with port = " + commandPort, e);
+                }
+            }
+        }
+
+
+        /**
+         * Call to close the server socket and stop listening for commands
+         */
+        public void close() {
+            try {
+                client.close();
+                serverSocket.close();
+            } catch (IOException e) {
+                logger.log(Level.WARNING, "Unable to close server socket", e);
+            } finally {
+                client = null;
+                serverSocket = null;
+            }
+        }
+    }
+
+
+    /**
+     *
+     */
+    private static class CommandHandler implements Runnable {
+        /** The logger */
+        private static final Logger logger = Logger.getLogger(CommandHandler.class.getName());
+
+        /** The real exchange */
+        private final StockExchange exchange;
+
+        /** The socket encapsulating a client connection. */
+        private Socket socket;
+
+        private CommandHandler(final StockExchange exchange, final Socket socket) {
+            this.exchange = exchange;
+            this.socket = socket;
+        }
+
+        @Override
+        public void run() {
+            while (!socket.isClosed()) {
+                try {
+                    final InputStreamReader isr = new InputStreamReader(socket.getInputStream());
+                    final BufferedReader reader = new BufferedReader(isr);
+                    final String command = reader.readLine();
+                    final Scanner scanner =
+                            new Scanner(command).useDelimiter(ProtocolConstants.ELEMENT_DELIMITER.toString());
+                    final String name = scanner.next();
+                    final ProtocolConstants cmdName = ProtocolConstants.valueOf(name);
+                    final BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+
+                    switch (cmdName) {
+                        case GET_QUOTE_CMD:
+                            scanner.skip(ProtocolConstants.ELEMENT_DELIMITER.toString());
+                            final String ticker = scanner.next();
+                            final StockQuote quote = exchange.getQuote(ticker);
+                            writer.write(quote.getPrice() + "\n");
+                            writer.flush();
+                            break;
+
+                        default:
+                            logger.log(Level.WARNING, "Unable to determine command for: " + cmdName);
+                    }
+                } catch (IOException e) {
+                    logger.log(Level.SEVERE, "Exception reading from input stream", e);
+                }
+            }
         }
     }
 }

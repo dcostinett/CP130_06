@@ -15,6 +15,8 @@ import java.util.logging.Logger;
  * Date: 5/21/13
  * Time: 9:52 AM
  *
+ * Provides a network interface to an exchange.
+ *
  * The exchange network adapter provides all of the functionality of the exchange through a network connection.
  * Provides a network interface to an exchange.
  *
@@ -47,7 +49,7 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
     private InetAddress group = null;
 
     /** The Socket used to listen for commands */
-    ServerSocket serverSocket;
+    private ServerSocket serverSocket;
 
     /**
      * Server event processing consists of the ExchangeNetworkAdapter registering as an ExchangeListener
@@ -74,6 +76,7 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
             multiSock = new MulticastSocket();
             multiSock.joinGroup(group);
 
+            serverSocket = new ServerSocket(commandPort);
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Unable to open socket", e);
         }

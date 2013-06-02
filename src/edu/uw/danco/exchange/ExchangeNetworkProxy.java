@@ -7,9 +7,7 @@ import edu.uw.ext.framework.order.Order;
 
 import javax.swing.event.EventListenerList;
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.InetAddress;
-import java.net.MulticastSocket;
+import java.net.*;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -23,13 +21,18 @@ import java.util.logging.Logger;
  * The exchange network proxy provides programmatic interface to the exchange network adapter. The exchange network
  * proxy implementation must implement the StockExchange interface. The operations of the StockExchange interface,
  * except the listener registration operations, will be implemented to make requests of the ExchangeNetworkAdapter
- * using the text based custom protocol. The proxy will receive multicast messages representing exchange events. These
- * event messages will be transformed into the appropriate event object and then propagated to registered listeners.
+ * using the text based custom protocol.
+ *
+ * The proxy will receive multicast messages representing exchange events. These event messages will be transformed
+ * into the appropriate event object and then propagated to registered listeners.
  */
 public class ExchangeNetworkProxy implements StockExchange {
 
     /** The logger */
     private static final Logger LOGGER = Logger.getLogger(ExchangeNetworkAdapter.class.getName());
+
+    /** The exchange adapter */
+    private ExchangeNetworkAdapter adapter;
 
     /** the multicast ip address to connect to */
     private final String eventIpAddress;
@@ -43,6 +46,12 @@ public class ExchangeNetworkProxy implements StockExchange {
     /** the address the exchange accepts requests on */
     private final int cmdPort;
 
+    /** Address for the exchange */
+    private InetAddress cmdAddress;
+
+    //** Socket for the exchange */
+    private Socket cmdSock;
+
     /** The event listener list for the exchange */
     private EventListenerList listenerList = new EventListenerList();
 
@@ -51,12 +60,6 @@ public class ExchangeNetworkProxy implements StockExchange {
 
     /** The event multicast socket */
     private MulticastSocket eventMultiSock = null;
-
-    /** The multicast eventGroup */
-    private InetAddress exchangeServerIp;
-
-    /** The event multicast socket */
-    private MulticastSocket cmdMultiSock = null;
 
 
     /**
@@ -80,15 +83,17 @@ public class ExchangeNetworkProxy implements StockExchange {
             eventMultiSock = new MulticastSocket(eventPort);
             eventMultiSock.joinGroup(eventGroup);
 
-            exchangeServerIp = InetAddress.getByName(cmdIpAddress);
+            cmdAddress = InetAddress.getByName(cmdIpAddress);
+            cmdSock = new Socket(cmdAddress, cmdPort);
+
+            adapter = new ExchangeNetworkAdapter(this, eventIpAddress, eventPort, cmdPort);
         } catch (IOException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Unable to connect to command socket.", e);
         } finally {
             if (eventMultiSock != null) {
                 eventMultiSock.close();
             }
         }
-
     }
 
     /**
@@ -100,8 +105,8 @@ public class ExchangeNetworkProxy implements StockExchange {
      */
     @Override
     public boolean isOpen() {
-        // send the GET_STATE_CMD message,
-        return false;
+        // sends the GET_STATE_CMD command, parses response
+        return true;
     }
 
 
@@ -114,6 +119,7 @@ public class ExchangeNetworkProxy implements StockExchange {
      */
     @Override
     public String[] getTickers() {
+        // send the GET_TICKERS_CMD command
         return new String[0];
     }
 
@@ -125,19 +131,22 @@ public class ExchangeNetworkProxy implements StockExchange {
      */
     @Override
     public StockQuote getQuote(String ticker) {
+        // send the GET_QUOTE_CMD command
         StockQuote quote = null;
 
         byte[] buf = new byte[1024];
         DatagramPacket packet = new DatagramPacket(buf, buf.length,
-                                                          exchangeServerIp, cmdPort);
+                                                          cmdAddress, cmdPort);
         byte[] bytes = NetEventProcessor.GetQuoteFor(ticker).getBytes();
         packet.setData(bytes);
         packet.setLength(bytes.length);
         try {
-            cmdMultiSock.send(packet);
+            cmdSock.getOutputStream().write(bytes);
+
             byte[] receiveBuffer = new byte[128];
+            cmdSock.getInputStream().read(receiveBuffer);
+
             DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
-            cmdMultiSock.receive(receivePacket);
             Scanner scanner = new Scanner(new String(receivePacket.getData(), 0, receivePacket.getLength()));
             int price = scanner.nextInt();
             quote = new StockQuote(ticker, price);
@@ -179,6 +188,7 @@ public class ExchangeNetworkProxy implements StockExchange {
      */
     @Override
     public int executeTrade(Order order) {
+        //sends the EXECUTE_TRADE command
         return 0;
     }
 }

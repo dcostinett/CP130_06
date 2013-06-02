@@ -48,6 +48,9 @@ public enum ProtocolConstants {
     GET_STATE_CMD("GET_STATE_CMD"),
     GET_TICKERS_CMD("GET_TICKERS_CMD"),
 
+    OPEN_STATE("OPEN_STATE"),
+    CLOSED_STATE("CLOSED_EVENT"),
+
     ELEMENT_DELIMITER(":");
 
 

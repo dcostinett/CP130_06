@@ -1,6 +1,7 @@
 package edu.uw.danco.exchange;
 
 import edu.uw.danco.exchange.operations.GetQuote;
+import edu.uw.danco.exchange.operations.GetState;
 import edu.uw.danco.exchange.operations.GetTickers;
 import edu.uw.ext.framework.exchange.ExchangeListener;
 import edu.uw.ext.framework.exchange.StockExchange;
@@ -101,6 +102,16 @@ public class ExchangeNetworkProxy implements StockExchange {
     @Override
     public boolean isOpen() {
         // sends the GET_STATE_CMD command, parses response
+        boolean isOpen = false;
+        eventProcessor.enqueue(new GetState());
+        try {
+            ExchangeOperation operation = (ExchangeOperation) eventProcessor.call();
+            final Scanner scanner =
+                    new Scanner(operation.getResult()).useDelimiter(ProtocolConstants.ELEMENT_DELIMITER.toString());
+            isOpen = scanner.next().equals(ProtocolConstants.OPEN_STATE.toString());
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Exception trying to call the event processor", e);
+        }
         return true;
     }
 

@@ -41,9 +41,6 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
     /** the ip port used to propagate price changes */
     private final int multicastPort;
 
-    /** the port for listening for commands */
-    private final int commandPort;
-
     /** The multicast socket  */
     private MulticastSocket multiSock = null;
 
@@ -71,7 +68,6 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
         this.exchange = exchange;
         this.multicastIp = multicastIp;
         this.multicastPort = multicastPort;
-        this.commandPort = commandPort;
 
         try {
             group = InetAddress.getByName(multicastIp);
@@ -269,6 +265,15 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                             for (final String symbol : tickers) {
                                 writer.write(symbol);
                                 writer.write(ProtocolConstants.ELEMENT_DELIMITER.toString());
+                            }
+                            writer.flush();
+                            break;
+
+                        case GET_STATE_CMD:
+                            if (exchange.isOpen()) {
+                                writer.write(ProtocolConstants.OPEN_STATE.toString());
+                            } else {
+                                writer.write(ProtocolConstants.CLOSED_STATE.toString());
                             }
                             writer.flush();
                             break;

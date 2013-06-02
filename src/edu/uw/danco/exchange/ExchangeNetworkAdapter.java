@@ -265,6 +265,15 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                             writer.flush();
                             break;
 
+                        case GET_TICKERS_CMD:
+                            String[] tickers = exchange.getTickers();
+                            for (final String symbol : tickers) {
+                                writer.write(symbol);
+                                writer.write(ProtocolConstants.ELEMENT_DELIMITER.toString());
+                            }
+                            writer.flush();
+                            break;
+
                         default:
                             logger.log(Level.WARNING, "Unable to determine command for: " + cmdName);
                     }

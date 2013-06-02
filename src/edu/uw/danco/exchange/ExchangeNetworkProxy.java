@@ -1,6 +1,7 @@
 package edu.uw.danco.exchange;
 
 import edu.uw.danco.exchange.operations.GetQuote;
+import edu.uw.danco.exchange.operations.GetTickers;
 import edu.uw.ext.framework.exchange.ExchangeListener;
 import edu.uw.ext.framework.exchange.StockExchange;
 import edu.uw.ext.framework.exchange.StockQuote;
@@ -9,6 +10,7 @@ import edu.uw.ext.framework.order.Order;
 import javax.swing.event.EventListenerList;
 import java.io.IOException;
 import java.net.*;
+import java.util.ArrayList;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -113,7 +115,19 @@ public class ExchangeNetworkProxy implements StockExchange {
     @Override
     public String[] getTickers() {
         // send the GET_TICKERS_CMD command
-        return new String[0];
+        final ArrayList<String> tickers = new ArrayList<String>();
+        eventProcessor.enqueue(new GetTickers());
+        try {
+            ExchangeOperation operation = (ExchangeOperation) eventProcessor.call();
+            final Scanner scanner =
+                    new Scanner(operation.getResult()).useDelimiter(ProtocolConstants.ELEMENT_DELIMITER.toString());
+            while (scanner.hasNext()) {
+                tickers.add(scanner.next());
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Exception trying to call the event processor", e);
+        }
+        return tickers.toArray(new String[0]);
     }
 
 
@@ -153,7 +167,6 @@ public class ExchangeNetworkProxy implements StockExchange {
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Exception trying to call the event processor", e);
         }
-
 
         return quote;
     }

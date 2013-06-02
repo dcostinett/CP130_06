@@ -1,6 +1,5 @@
 package edu.uw.danco.exchange;
 
-import com.sun.xml.internal.fastinfoset.alphabet.BuiltInRestrictedAlphabets;
 import edu.uw.ext.framework.exchange.ExchangeAdapter;
 import edu.uw.ext.framework.exchange.ExchangeEvent;
 import edu.uw.ext.framework.exchange.StockExchange;

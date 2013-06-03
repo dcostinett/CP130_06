@@ -1,5 +1,6 @@
 package edu.uw.danco.exchange;
 
+import edu.uw.danco.exchange.operations.ExecuteTrade;
 import edu.uw.danco.exchange.operations.GetQuote;
 import edu.uw.danco.exchange.operations.GetState;
 import edu.uw.danco.exchange.operations.GetTickers;
@@ -194,7 +195,15 @@ public class ExchangeNetworkProxy implements StockExchange {
     @Override
     public int executeTrade(final Order order) {
         //sends the EXECUTE_TRADE command
+        int executionPrice = 0;
+        commandProcessor.enqueue(new ExecuteTrade(order));
+        try {
+            ExchangeOperation operation = (ExchangeOperation) commandProcessor.call();
+            executionPrice = Integer.valueOf(operation.getResult());
+        } catch (final Exception e) {
+            LOGGER.log(Level.SEVERE, "Exception executing order id: " + order.getOrderId(), e);
+        }
 
-        return 0;
+        return executionPrice;
     }
 }

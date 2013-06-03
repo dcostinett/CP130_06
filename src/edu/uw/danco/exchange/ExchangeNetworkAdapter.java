@@ -147,8 +147,8 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
         byte[] buf = new byte[1024];
         final DatagramPacket packet = new DatagramPacket(buf, buf.length,
                                                                 group, multicastPort);
-        final String openEvent = NetEventProcessor.GetEventString(event);
-        byte[] bytes = openEvent.getBytes();
+        final String eventStr = NetEventProcessor.GetEventString(event);
+        byte[] bytes = eventStr.getBytes();
         packet.setData(bytes);
         packet.setLength(bytes.length);
         try {

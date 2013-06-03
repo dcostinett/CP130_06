@@ -1,13 +1,16 @@
 package edu.uw.danco.exchange;
 
 import edu.uw.ext.framework.exchange.ExchangeEvent;
+import edu.uw.ext.framework.exchange.ExchangeListener;
 import edu.uw.ext.framework.exchange.StockExchange;
 
+import javax.swing.event.EventListenerList;
 import java.io.*;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.net.Socket;
+import java.util.EventListener;
 import java.util.Scanner;
 import java.util.concurrent.*;
 import java.util.logging.Level;
@@ -44,6 +47,10 @@ public class NetEventProcessor implements Callable, Runnable {
     /** The socket with which to talk to the server */
     private Socket server;
 
+    /** The event listeners to notify of multicast events */
+    private final EventListenerList listeners;
+
+
     /**
      * Constructor
      * @param eventPort - the multicast event port
@@ -55,11 +62,13 @@ public class NetEventProcessor implements Callable, Runnable {
                              final InetAddress eventGroup,
                              final MulticastSocket eventMultiSock,
                              final String cmdIpAddress,
-                             final int cmdPort) {
+                             final int cmdPort,
+                             final EventListenerList listeners) {
         this.eventPort = eventPort;
         this.eventGroup = eventGroup;
         this.cmdIpAddress = cmdIpAddress;
         this.cmdPort = cmdPort;
+        this.listeners = listeners;
         try {
             this.eventMultiSock = eventMultiSock;
             eventMultiSock.joinGroup(eventGroup);
@@ -122,18 +131,57 @@ public class NetEventProcessor implements Callable, Runnable {
 
     @Override
     public void run() {
-        // while (market.isOpen()) // how to determine this from here?
-        while (true) {
+        // while (market.isOpen()) // how to determine this from here? If I pass in the proxy to the constructor, I run
+        // into a problem, I think, where the proxy hasn't finished construction so I get a hang...
+         while (true) {
             try {
                 if (!eventMultiSock.isClosed()) {
-                    byte[] receiveBuffer = new byte[128];
-                    DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+                    final byte[] receiveBuffer = new byte[128];
+                    final DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
                     eventMultiSock.receive(receivePacket);
                     final String eventStr = new String(receivePacket.getData(), 0, receivePacket.getLength());
-                    Scanner scanner = new Scanner(eventStr);
+                    final Scanner scanner =
+                            new Scanner(eventStr).useDelimiter(ProtocolConstants.ELEMENT_DELIMITER.toString());
+
+                    final String eventTypeStr = scanner.next();
+                    final ExchangeEvent.EventType eventType =
+                            eventTypeStr.equals(ProtocolConstants.PRICE_CHANGE_EVENT.toString()) ?
+                            ExchangeEvent.EventType.PRICE_CHANGED :
+                                    eventTypeStr.equals(ProtocolConstants.CLOSED_EVENT.toString()) ?
+                                            ExchangeEvent.EventType.CLOSED :
+                                            ExchangeEvent.EventType.OPENED;
+
+                    for (final ExchangeListener listener : listeners.getListeners(ExchangeListener.class)) {
+                        switch (eventType) {
+                            case PRICE_CHANGED:
+                                final ExchangeEvent priceChangedEvent =
+                                        ExchangeEvent.newPriceChangedEvent(this, scanner.next(), scanner.nextInt());
+                                listener.priceChanged(priceChangedEvent);
+                                break;
+
+                            case CLOSED:
+                                final ExchangeEvent closedEvent = ExchangeEvent.newClosedEvent(this);
+                                listener.exchangeClosed(closedEvent);
+                                break;
+
+                            case OPENED:
+                                final ExchangeEvent openedEvent = ExchangeEvent.newOpenedEvent(this);
+                                listener.exchangeOpened(openedEvent);
+                                break;
+
+                            default:
+                                logger.log(Level.WARNING, "Unable to determine event type from: " + eventTypeStr);
+                        }
+                    }
+                } else {
+                    try {
+                        wait(1000);
+                    } catch (InterruptedException e) {
+                        logger.log(Level.WARNING, "Wait was interrupted.", e);
+                    }
                 }
-            } catch (IOException e) {
-                logger.log(Level.SEVERE, "Exception reading from multiscok", e);
+            } catch (final IOException e) {
+                logger.log(Level.SEVERE, "Exception reading from multisock", e);
             }
         }
     }

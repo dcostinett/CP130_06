@@ -68,7 +68,8 @@ public class ExchangeNetworkProxy implements StockExchange {
             eventGroup = InetAddress.getByName(eventIpAddress);
             eventMultiSock = new MulticastSocket(eventPort);
 
-            commandProcessor = new NetEventProcessor(eventPort, eventGroup, eventMultiSock, cmdIpAddress, cmdPort);
+            commandProcessor =
+                    new NetEventProcessor(eventPort, eventGroup, eventMultiSock, cmdIpAddress, cmdPort, listenerList);
 
             executor.execute(commandProcessor);
         } catch (IOException e) {

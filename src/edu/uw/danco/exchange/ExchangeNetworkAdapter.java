@@ -300,7 +300,7 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                             final String accountId = scanner.next();
                             final String symbol = scanner.next();
                             final int numberOfShares = scanner.nextInt();
-                            if (orderType.equals(ProtocolConstants.BUY_ORDER)) {
+                            if (orderType.equals(ProtocolConstants.BUY_ORDER.toString())) {
                                 order = new MarketBuyOrder(accountId, numberOfShares, symbol);
                             } else {
                                 order = new MarketSellOrder(accountId, numberOfShares, symbol);

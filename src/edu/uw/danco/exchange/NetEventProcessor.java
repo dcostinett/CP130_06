@@ -1,6 +1,7 @@
 package edu.uw.danco.exchange;
 
 import edu.uw.ext.framework.exchange.ExchangeEvent;
+import edu.uw.ext.framework.exchange.StockExchange;
 
 import java.io.*;
 import java.net.DatagramPacket;
@@ -43,9 +44,6 @@ public class NetEventProcessor implements Callable, Runnable {
     /** The socket with which to talk to the server */
     private Socket server;
 
-    /** Executor service for processing stock exchange events */
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
-
     /**
      * Constructor
      * @param eventPort - the multicast event port
@@ -67,7 +65,6 @@ public class NetEventProcessor implements Callable, Runnable {
             eventMultiSock.joinGroup(eventGroup);
 
             server = new Socket(cmdIpAddress, cmdPort);
-            executor.execute(this);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -125,13 +122,16 @@ public class NetEventProcessor implements Callable, Runnable {
 
     @Override
     public void run() {
-        while (!eventMultiSock.isClosed()) {
-            byte[] receiveBuffer = new byte[128];
-            DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+        // while (market.isOpen()) // how to determine this from here?
+        while (true) {
             try {
-                eventMultiSock.receive(receivePacket);
-                final String eventStr = new String(receivePacket.getData(), 0, receivePacket.getLength());
-                Scanner scanner = new Scanner(eventStr);
+                if (!eventMultiSock.isClosed()) {
+                    byte[] receiveBuffer = new byte[128];
+                    DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+                    eventMultiSock.receive(receivePacket);
+                    final String eventStr = new String(receivePacket.getData(), 0, receivePacket.getLength());
+                    Scanner scanner = new Scanner(eventStr);
+                }
             } catch (IOException e) {
                 logger.log(Level.SEVERE, "Exception reading from multiscok", e);
             }

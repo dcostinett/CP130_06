@@ -14,6 +14,8 @@ import java.io.IOException;
 import java.net.*;
 import java.util.ArrayList;
 import java.util.Scanner;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -48,6 +50,9 @@ public class ExchangeNetworkProxy implements StockExchange {
     /** The event processor */
     private NetEventProcessor commandProcessor;
 
+    /** Executor service for processing stock exchange events */
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
     /**
      *
      * @param eventIpAddress - the multicast IP address to connect to
@@ -64,6 +69,8 @@ public class ExchangeNetworkProxy implements StockExchange {
             eventMultiSock = new MulticastSocket(eventPort);
 
             commandProcessor = new NetEventProcessor(eventPort, eventGroup, eventMultiSock, cmdIpAddress, cmdPort);
+
+            executor.execute(commandProcessor);
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Unable to connect to command socket.", e);
         } finally {

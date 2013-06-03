@@ -51,6 +51,9 @@ public enum ProtocolConstants {
     OPEN_STATE("OPEN_STATE"),
     CLOSED_STATE("CLOSED_EVENT"),
 
+    BUY_ORDER("BUY_ORDER"),
+    SELL_ORDER("SELL_ORDER"),
+
     ELEMENT_DELIMITER(":");
 
 

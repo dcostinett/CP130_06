@@ -35,21 +35,6 @@ public class ExchangeNetworkProxy implements StockExchange {
     /** The logger */
     private static final Logger LOGGER = Logger.getLogger(ExchangeNetworkAdapter.class.getName());
 
-    /** The exchange adapter */
-    private ExchangeNetworkAdapter adapter;
-
-    /** the multicast ip address to connect to */
-    private final String eventIpAddress;
-
-    /** the address the exchange accepts requests on */
-    private final String cmdIpAddress;
-
-    /** Address for the exchange */
-    private InetAddress cmdAddress;
-
-    //** Socket for the exchange */
-    private Socket cmdSock;
-
     /** The event listener list for the exchange */
     private EventListenerList listenerList = new EventListenerList();
 
@@ -60,7 +45,7 @@ public class ExchangeNetworkProxy implements StockExchange {
     private MulticastSocket eventMultiSock = null;
 
     /** The event processor */
-    private NetEventProcessor eventProcessor;
+    private NetEventProcessor commandProcessor;
 
     /**
      *
@@ -73,16 +58,11 @@ public class ExchangeNetworkProxy implements StockExchange {
                                 final int eventPort,
                                 final String cmdIpAddress,
                                 final int cmdPort) {
-        this.eventIpAddress = eventIpAddress;
-        this.cmdIpAddress = cmdIpAddress;
-
         try {
             eventGroup = InetAddress.getByName(eventIpAddress);
             eventMultiSock = new MulticastSocket(eventPort);
-            eventProcessor = new NetEventProcessor(eventPort, eventGroup, eventMultiSock, cmdIpAddress, cmdPort);
 
-            cmdAddress = InetAddress.getByName(cmdIpAddress);
-            cmdSock = new Socket(cmdAddress, cmdPort);
+            commandProcessor = new NetEventProcessor(eventPort, eventGroup, eventMultiSock, cmdIpAddress, cmdPort);
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Unable to connect to command socket.", e);
         } finally {
@@ -103,9 +83,9 @@ public class ExchangeNetworkProxy implements StockExchange {
     public boolean isOpen() {
         // sends the GET_STATE_CMD command, parses response
         boolean isOpen = false;
-        eventProcessor.enqueue(new GetState());
+        commandProcessor.enqueue(new GetState());
         try {
-            ExchangeOperation operation = (ExchangeOperation) eventProcessor.call();
+            ExchangeOperation operation = (ExchangeOperation) commandProcessor.call();
             final Scanner scanner =
                     new Scanner(operation.getResult()).useDelimiter(ProtocolConstants.ELEMENT_DELIMITER.toString());
             isOpen = scanner.next().equals(ProtocolConstants.OPEN_STATE.toString());
@@ -127,9 +107,9 @@ public class ExchangeNetworkProxy implements StockExchange {
     public String[] getTickers() {
         // send the GET_TICKERS_CMD command
         final ArrayList<String> tickers = new ArrayList<String>();
-        eventProcessor.enqueue(new GetTickers());
+        commandProcessor.enqueue(new GetTickers());
         try {
-            ExchangeOperation operation = (ExchangeOperation) eventProcessor.call();
+            ExchangeOperation operation = (ExchangeOperation) commandProcessor.call();
             final Scanner scanner =
                     new Scanner(operation.getResult()).useDelimiter(ProtocolConstants.ELEMENT_DELIMITER.toString());
             while (scanner.hasNext()) {
@@ -148,7 +128,7 @@ public class ExchangeNetworkProxy implements StockExchange {
      * @return - the quote, or null if the quote is unavailable
      */
     @Override
-    public StockQuote getQuote(String ticker) {
+    public StockQuote getQuote(final String ticker) {
         // send the GET_QUOTE_CMD command
         StockQuote quote = null;
 
@@ -171,9 +151,9 @@ public class ExchangeNetworkProxy implements StockExchange {
 //        } catch (IOException e) {
 //            LOGGER.log(Level.SEVERE, "Unable to send getQuote to exchangeServerIp", e);
 //        }
-        eventProcessor.enqueue(new GetQuote(ticker));
+        commandProcessor.enqueue(new GetQuote(ticker));
         try {
-            ExchangeOperation operation = (ExchangeOperation) eventProcessor.call();
+            ExchangeOperation operation = (ExchangeOperation) commandProcessor.call();
             quote = new StockQuote(ticker, Integer.valueOf(operation.getResult()));
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Exception trying to call the event processor", e);
@@ -191,7 +171,7 @@ public class ExchangeNetworkProxy implements StockExchange {
      * @param l - the listener to add
      */
     @Override
-    public void addExchangeListener(ExchangeListener l) {
+    public void addExchangeListener(final ExchangeListener l) {
         listenerList.add(ExchangeListener.class, l);
     }
 
@@ -201,7 +181,7 @@ public class ExchangeNetworkProxy implements StockExchange {
      * @param l - the listener to remove
      */
     @Override
-    public void removeExchangeListener(ExchangeListener l) {
+    public void removeExchangeListener(final ExchangeListener l) {
         listenerList.remove(ExchangeListener.class, l);
     }
 
@@ -212,8 +192,9 @@ public class ExchangeNetworkProxy implements StockExchange {
      * @return - the price the order was executed at
      */
     @Override
-    public int executeTrade(Order order) {
+    public int executeTrade(final Order order) {
         //sends the EXECUTE_TRADE command
+
         return 0;
     }
 }

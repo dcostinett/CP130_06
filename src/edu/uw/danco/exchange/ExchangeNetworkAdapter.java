@@ -4,6 +4,9 @@ import edu.uw.ext.framework.exchange.ExchangeAdapter;
 import edu.uw.ext.framework.exchange.ExchangeEvent;
 import edu.uw.ext.framework.exchange.StockExchange;
 import edu.uw.ext.framework.exchange.StockQuote;
+import edu.uw.ext.framework.order.MarketBuyOrder;
+import edu.uw.ext.framework.order.MarketSellOrder;
+import edu.uw.ext.framework.order.Order;
 
 import java.io.*;
 import java.net.*;
@@ -245,6 +248,9 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                     final InputStreamReader isr = new InputStreamReader(socket.getInputStream());
                     final BufferedReader reader = new BufferedReader(isr);
                     final String command = reader.readLine();
+                    if (command == null) {
+                        continue;
+                    }
                     final Scanner scanner =
                             new Scanner(command).useDelimiter(ProtocolConstants.ELEMENT_DELIMITER.toString());
                     final String name = scanner.next();
@@ -275,6 +281,32 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                             } else {
                                 writer.write(ProtocolConstants.CLOSED_STATE.toString());
                             }
+                            writer.flush();
+                            break;
+
+                        case EXECUTE_TRADE_CMD:
+                            /*
+                             * Request:
+                             * [EXECUTE_TRADE_CMD][ELEMENT_DELIMITER]
+                             * [BUY_ORDER]|[SELL_ORDER][ELEMENT_DELIMITER]
+                             * account_id[ELEMENT_DELIMITER]
+                             * symbol[ELEMENT_DELIMITER]
+                             * shares
+                             * Response: execution_price
+                             */
+                            scanner.skip(ProtocolConstants.ELEMENT_DELIMITER.toString());
+                            final Order order;
+                            final String orderType = scanner.next();
+                            final String accountId = scanner.next();
+                            final String symbol = scanner.next();
+                            final int numberOfShares = scanner.nextInt();
+                            if (orderType.equals(ProtocolConstants.BUY_ORDER)) {
+                                order = new MarketBuyOrder(accountId, numberOfShares, symbol);
+                            } else {
+                                order = new MarketSellOrder(accountId, numberOfShares, symbol);
+                            }
+                            final int executionPrice = exchange.executeTrade(order);
+                            writer.write(executionPrice);
                             writer.flush();
                             break;
 

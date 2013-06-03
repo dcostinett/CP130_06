@@ -3,13 +3,12 @@ package edu.uw.danco.exchange;
 import edu.uw.ext.framework.exchange.ExchangeEvent;
 
 import java.io.*;
+import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.net.Socket;
 import java.util.Scanner;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Callable;
+import java.util.concurrent.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -19,7 +18,7 @@ import java.util.logging.Logger;
  * Date: 5/27/13
  * Time: 12:37 PM
  */
-public class NetEventProcessor implements Callable {
+public class NetEventProcessor implements Callable, Runnable {
     /** The logger */
     private static final Logger logger = Logger.getLogger(NetEventProcessor.class.getName());
 
@@ -44,6 +43,9 @@ public class NetEventProcessor implements Callable {
     /** The socket with which to talk to the server */
     private Socket server;
 
+    /** Executor service for processing stock exchange events */
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
     /**
      * Constructor
      * @param eventPort - the multicast event port
@@ -65,6 +67,7 @@ public class NetEventProcessor implements Callable {
             eventMultiSock.joinGroup(eventGroup);
 
             server = new Socket(cmdIpAddress, cmdPort);
+            executor.execute(this);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -121,10 +124,26 @@ public class NetEventProcessor implements Callable {
 
 
     @Override
+    public void run() {
+        while (!eventMultiSock.isClosed()) {
+            byte[] receiveBuffer = new byte[128];
+            DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+            try {
+                eventMultiSock.receive(receivePacket);
+                final String eventStr = new String(receivePacket.getData(), 0, receivePacket.getLength());
+                Scanner scanner = new Scanner(eventStr);
+            } catch (IOException e) {
+                logger.log(Level.SEVERE, "Exception reading from multiscok", e);
+            }
+        }
+    }
+
+    @Override
     public Object call() throws Exception {
         ExchangeOperation operation = null;
         try {
             operation = commandQueue.take();
+
             final BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(server.getOutputStream()));
             writer.write(operation.getCommand() + "\n");
             writer.flush();

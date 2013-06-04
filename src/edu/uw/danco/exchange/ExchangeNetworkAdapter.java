@@ -94,6 +94,7 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
     public void close() {
         if (multiSock != null) {
             try {
+                exchange.removeExchangeListener(this);
                 multiSock.leaveGroup(InetAddress.getByName(multicastIp));
                 listener.close();
             } catch (IOException e) {
@@ -113,7 +114,6 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
      */
     @Override
     public void exchangeOpened(final ExchangeEvent event) {
-        exchange.addExchangeListener(this);
         multicastEvent(event);
     }
 
@@ -127,7 +127,6 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
     @Override
     public void exchangeClosed(final ExchangeEvent event) {
         multicastEvent(event);
-        exchange.removeExchangeListener(this);
     }
 
 
@@ -144,10 +143,12 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
 
 
     private void multicastEvent(final ExchangeEvent event) {
+        // can move the datagram object to an instance member rather than local to decrease object creation
         byte[] buf = new byte[1024];
         final DatagramPacket packet = new DatagramPacket(buf, buf.length,
                                                                 group, multicastPort);
         final String eventStr = NetEventProcessor.GetEventString(event);
+        // add the encoding type to the ProtocolConstants and reference it in the getBytes method
         byte[] bytes = eventStr.getBytes();
         packet.setData(bytes);
         packet.setLength(bytes.length);
@@ -160,7 +161,7 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
 
 
     /**
-     *
+     * Listen for operations commands sent on the network
      */
     private static class CommandListener extends Thread {
 
@@ -179,6 +180,13 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
         /** The socket encapsulating a client connection. */
         private Socket client;
 
+        // Russ used an Executor here
+
+        /**
+         * Constructor
+         * @param exchange
+         * @param commandPort
+         */
         private CommandListener(StockExchange exchange, int commandPort) {
             this.exchange = exchange;
             this.commandPort = commandPort;
@@ -201,8 +209,15 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                     handlerThread.start();
                 } catch (IOException e) {
                     logger.log(Level.WARNING, "Exception listening on server with port = " + commandPort, e);
+                } finally {
+                    terminate();
                 }
             }
+        }
+
+
+        private void terminate() {
+            //shut things down here
         }
 
 
@@ -224,7 +239,7 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
 
 
     /**
-     *
+     * Handle operations calls to the exchange
      */
     private static class CommandHandler implements Runnable {
         /** The logger */
@@ -236,6 +251,12 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
         /** The socket encapsulating a client connection. */
         private Socket socket;
 
+
+        /**
+         * Constructor
+         * @param exchange
+         * @param socket
+         */
         private CommandHandler(final StockExchange exchange, final Socket socket) {
             this.exchange = exchange;
             this.socket = socket;
@@ -255,23 +276,29 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                             new Scanner(command).useDelimiter(ProtocolConstants.ELEMENT_DELIMITER.toString());
                     final String name = scanner.next();
                     final ProtocolConstants cmdName = ProtocolConstants.valueOf(name);
+
                     final BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+                    // use a PrintWriter rather than a BufferedWriter and you get a println method on the writer,
+                    // and you can also pass a value to cause it to auto-flush.
 
                     switch (cmdName) {
                         case GET_QUOTE_CMD:
                             scanner.skip(ProtocolConstants.ELEMENT_DELIMITER.toString());
                             final String ticker = scanner.next();
                             final StockQuote quote = exchange.getQuote(ticker);
+                            // handle invalid tickers
                             writer.write(quote.getPrice() + "\n");
                             writer.flush();
                             break;
 
                         case GET_TICKERS_CMD:
                             String[] tickers = exchange.getTickers();
+                            // instaed of writing immediately, use a string builder and first build the string
                             for (final String symbol : tickers) {
                                 writer.write(symbol);
                                 writer.write(ProtocolConstants.ELEMENT_DELIMITER.toString());
                             }
+                            writer.write("\n");
                             writer.flush();
                             break;
 
@@ -281,6 +308,7 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                             } else {
                                 writer.write(ProtocolConstants.CLOSED_STATE.toString());
                             }
+                            writer.write("\n");
                             writer.flush();
                             break;
 
@@ -294,27 +322,36 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                              * shares
                              * Response: execution_price
                              */
-                            scanner.skip(ProtocolConstants.ELEMENT_DELIMITER.toString());
-                            final Order order;
-                            final String orderType = scanner.next();
-                            final String accountId = scanner.next();
-                            final String symbol = scanner.next();
-                            final int numberOfShares = scanner.nextInt();
-                            if (orderType.equals(ProtocolConstants.BUY_ORDER.toString())) {
-                                order = new MarketBuyOrder(accountId, numberOfShares, symbol);
+                            if (exchange.isOpen()) {
+                                scanner.skip(ProtocolConstants.ELEMENT_DELIMITER.toString());
+                                final Order order;
+                                final String orderType = scanner.next();
+                                final String accountId = scanner.next();
+                                final String symbol = scanner.next();
+                                final int numberOfShares = scanner.nextInt();
+                                if (orderType.equals(ProtocolConstants.BUY_ORDER.toString())) {
+                                    order = new MarketBuyOrder(accountId, numberOfShares, symbol);
+                                } else {
+                                    order = new MarketSellOrder(accountId, numberOfShares, symbol);
+                                }
+                                final int executionPrice = exchange.executeTrade(order);
+                                writer.write(String.valueOf(executionPrice));
+                                writer.write("\n");
+                                writer.flush();
                             } else {
-                                order = new MarketSellOrder(accountId, numberOfShares, symbol);
+                                writer.write(0 + "\n");
+                                writer.flush();
                             }
-                            final int executionPrice = exchange.executeTrade(order);
-                            writer.write(executionPrice);
-                            writer.flush();
                             break;
 
                         default:
                             logger.log(Level.WARNING, "Unable to determine command for: " + cmdName);
+                            break;
                     }
                 } catch (IOException e) {
                     logger.log(Level.SEVERE, "Exception reading from input stream", e);
+                } finally {
+                    //close thi input and output streams and the socket
                 }
             }
         }

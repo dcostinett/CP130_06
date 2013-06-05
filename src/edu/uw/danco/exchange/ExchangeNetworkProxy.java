@@ -198,6 +198,13 @@ public class ExchangeNetworkProxy implements StockExchange {
         return executionPrice;
     }
 
+
+    /**
+     * Called to put the text-based commands on the wire to the exchange server
+     * @param operation - the abstract representation of an exchange operation
+     * @return - the result from the operation on the real exchange
+     * @throws Exception
+     */
     public ExchangeOperation call(ExchangeOperation operation) throws Exception {
         final BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(server.getOutputStream()));
         writer.write(operation.getCommand() + "\n");

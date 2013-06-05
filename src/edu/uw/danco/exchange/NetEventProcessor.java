@@ -96,15 +96,16 @@ public class NetEventProcessor implements Runnable {
 
     @Override
     public void run() {
-        // while (market.isOpen()) // how to determine this from here? If I pass in the proxy to the constructor, I run
-        // into a problem, I think, where the proxy hasn't finished construction so I get a hang...
-         while (true) {
-            try {
+        try {
+            while (true) {
                 final byte[] receiveBuffer = new byte[128];
                 final DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
                 eventMultiSock.receive(receivePacket);
 
                 final String eventStr = new String(receivePacket.getData(), 0, receivePacket.getLength());
+
+                logger.info("Received event: " + eventStr);
+
                 final Scanner scanner =
                         new Scanner(eventStr).useDelimiter(ProtocolConstants.ELEMENT_DELIMITER.toString());
 
@@ -138,9 +139,9 @@ public class NetEventProcessor implements Runnable {
                             logger.log(Level.WARNING, "Unable to determine event type from: " + eventTypeStr);
                     }
                 }
-            } catch (final IOException e) {
-                logger.log(Level.SEVERE, "Exception reading from multisock", e);
             }
+        } catch (final IOException e) {
+            logger.log(Level.SEVERE, "Exception reading from multisock", e);
         }
     }
 }

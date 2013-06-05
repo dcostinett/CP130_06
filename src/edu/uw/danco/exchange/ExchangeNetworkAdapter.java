@@ -59,7 +59,7 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
      * @param exchange - the exchange used to service the network requests
      * @param multicastIp - the ipaddress used to propagate price changes
      * @param multicastPort - the ip port used to propagate price changes
-     * @param commandPort - the port for listening for commands
+     * @param commandPort - the port for handling for commands
      * @throws UnknownHostException
      * @throws SocketException
      */
@@ -180,7 +180,8 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
         /** The socket encapsulating a client connection. */
         private Socket client;
 
-        // Russ used an Executor here
+        /** Flag to determine listening state */
+        private boolean listening;
 
         /**
          * Constructor
@@ -200,32 +201,34 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
 
         @Override
         public void run() {
-            while (!serverSocket.isClosed()) {
-                logger.info("Listening for commands");
-                try {
+            listening = true;
+            CommandHandler handler = null;
+            logger.info("Listening for commands");
+            try {
+                while (listening) {
                     client = serverSocket.accept();
-                    final CommandHandler handler = new CommandHandler(exchange, client);
+                    handler = new CommandHandler(exchange, client);
                     final Thread handlerThread = new Thread(handler);
                     handlerThread.start();
-                } catch (IOException e) {
-                    logger.log(Level.WARNING, "Exception listening on server with port = " + commandPort, e);
-                } finally {
-                    terminate();
                 }
+            } catch (final SocketException e) {
+                if (serverSocket != null && !serverSocket.isClosed()) {
+                    logger.log(Level.WARNING, "SocketException on server with port = " + commandPort, e);
+                }
+            } catch (IOException e) {
+                logger.log(Level.WARNING, "Exception listening on server with port = " + commandPort, e);
+            } finally {
+                handler.stopHandling();
             }
         }
 
 
-        private void terminate() {
-            //shut things down here
-        }
-
-
         /**
-         * Call to close the server socket and stop listening for commands
+         * Call to close the server socket and stop handling for commands
          */
         public void close() {
             try {
+                listening = false;
                 client.close();
                 serverSocket.close();
             } catch (IOException e) {
@@ -251,6 +254,8 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
         /** The socket encapsulating a client connection. */
         private Socket socket;
 
+        /** Flag to determine handling state */
+        private boolean handling = false;
 
         /**
          * Constructor
@@ -264,10 +269,15 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
 
         @Override
         public void run() {
-            while (!socket.isClosed()) {
-                try {
-                    final InputStreamReader isr = new InputStreamReader(socket.getInputStream());
-                    final BufferedReader reader = new BufferedReader(isr);
+            handling = true;
+            InputStreamReader isr = null;
+            BufferedReader reader = null;
+            BufferedWriter writer = null;
+            try {
+                isr = new InputStreamReader(socket.getInputStream());
+                reader = new BufferedReader(isr);
+                writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+                while (handling) {
                     final String command = reader.readLine();
                     if (command == null) {
                         continue;
@@ -277,7 +287,6 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                     final String name = scanner.next();
                     final ProtocolConstants cmdName = ProtocolConstants.valueOf(name);
 
-                    final BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
                     // use a PrintWriter rather than a BufferedWriter and you get a println method on the writer,
                     // and you can also pass a value to cause it to auto-flush.
 
@@ -348,12 +357,48 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                             logger.log(Level.WARNING, "Unable to determine command for: " + cmdName);
                             break;
                     }
+                }
                 } catch (IOException e) {
                     logger.log(Level.SEVERE, "Exception reading from input stream", e);
                 } finally {
-                    //close thi input and output streams and the socket
+                    if (reader != null) {
+                        try {
+                            reader.close();
+                        } catch (IOException e) {
+                            logger.log(Level.WARNING, "Exception closing reader", e);
+                        }
+                    }
+                    if (isr != null) {
+                        try {
+                            isr.close();
+                        } catch (IOException e) {
+                            logger.log(Level.WARNING, "Exception closeing input stream", e);
+                        }
+                    }
+                    if (writer != null) {
+                        try {
+                            writer.close();
+                        } catch (IOException e) {
+                            logger.log(Level.WARNING, "Exception closing writer", e);
+                        }
+                    }
+                    if (socket != null) {
+                        try {
+                            socket.close();
+                        } catch (IOException e) {
+                            logger.log(Level.WARNING, "Exception closing socket", e);
+                        }
+                    }
+
                 }
-            }
+        }
+
+
+        /**
+         * Convenience method to shut down handling for events
+         */
+        private void stopHandling() {
+            this.handling = false;
         }
     }
 }

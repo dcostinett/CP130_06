@@ -272,11 +272,11 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
             handling = true;
             InputStreamReader isr = null;
             BufferedReader reader = null;
-            BufferedWriter writer = null;
+            PrintStream writer = null;
             try {
                 isr = new InputStreamReader(socket.getInputStream());
                 reader = new BufferedReader(isr);
-                writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+                writer = new PrintStream(socket.getOutputStream(), true);
                 while (handling) {
                     final String command = reader.readLine();
                     if (command == null) {
@@ -296,29 +296,24 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                             final String ticker = scanner.next();
                             final StockQuote quote = exchange.getQuote(ticker);
                             // handle invalid tickers
-                            writer.write(quote.getPrice() + "\n");
-                            writer.flush();
+                            writer.println(quote.getPrice());
                             break;
 
                         case GET_TICKERS_CMD:
                             String[] tickers = exchange.getTickers();
-                            // instaed of writing immediately, use a string builder and first build the string
+                            final StringBuilder sb = new StringBuilder();
                             for (final String symbol : tickers) {
-                                writer.write(symbol);
-                                writer.write(ProtocolConstants.ELEMENT_DELIMITER.toString());
+                                sb.append(symbol).append(ProtocolConstants.ELEMENT_DELIMITER.toString());
                             }
-                            writer.write("\n");
-                            writer.flush();
+                            writer.println(sb.toString());
                             break;
 
                         case GET_STATE_CMD:
                             if (exchange.isOpen()) {
-                                writer.write(ProtocolConstants.OPEN_STATE.toString());
+                                writer.println(ProtocolConstants.OPEN_STATE.toString());
                             } else {
-                                writer.write(ProtocolConstants.CLOSED_STATE.toString());
+                                writer.println(ProtocolConstants.CLOSED_STATE.toString());
                             }
-                            writer.write("\n");
-                            writer.flush();
                             break;
 
                         case EXECUTE_TRADE_CMD:
@@ -344,12 +339,9 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                                     order = new MarketSellOrder(accountId, numberOfShares, symbol);
                                 }
                                 final int executionPrice = exchange.executeTrade(order);
-                                writer.write(String.valueOf(executionPrice));
-                                writer.write("\n");
-                                writer.flush();
+                                writer.println(String.valueOf(executionPrice));
                             } else {
-                                writer.write(0 + "\n");
-                                writer.flush();
+                                writer.println(0);
                             }
                             break;
 
@@ -376,11 +368,7 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                         }
                     }
                     if (writer != null) {
-                        try {
-                            writer.close();
-                        } catch (IOException e) {
-                            logger.log(Level.WARNING, "Exception closing writer", e);
-                        }
+                        writer.close();
                     }
                     if (socket != null) {
                         try {

@@ -37,12 +37,9 @@ public class NetEventProcessor implements Runnable {
      * Constructor
      * @param eventPort - the multicast event port
      * @param eventGroup - the multicast group
-     * @param cmdPort - the port for exchange commands
      */
     public NetEventProcessor(final int eventPort,
                              final InetAddress eventGroup,
-                             final String cmdIpAddress,
-                             final int cmdPort,
                              final EventListenerList listeners) {
         this.listeners = listeners;
         try {

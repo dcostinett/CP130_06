@@ -74,7 +74,7 @@ public class ExchangeNetworkProxy implements StockExchange {
             eventGroup = InetAddress.getByName(eventIpAddress);
 
             commandProcessor =
-                    new NetEventProcessor(eventPort, eventGroup, cmdIpAddress, cmdPort, listenerList);
+                    new NetEventProcessor(eventPort, eventGroup, listenerList);
 
             executor.execute(commandProcessor);
             server = new Socket(cmdIpAddress, cmdPort);
@@ -206,9 +206,8 @@ public class ExchangeNetworkProxy implements StockExchange {
      * @throws Exception
      */
     public ExchangeOperation call(ExchangeOperation operation) throws Exception {
-        final BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(server.getOutputStream()));
-        writer.write(operation.getCommand() + "\n");
-        writer.flush();
+        final PrintWriter writer = new PrintWriter(new OutputStreamWriter(server.getOutputStream()));
+        writer.println(operation.getCommand());
 
         final InputStreamReader isr = new InputStreamReader(server.getInputStream());
         final BufferedReader reader = new BufferedReader(isr);

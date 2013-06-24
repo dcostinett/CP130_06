@@ -272,11 +272,11 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
             handling = true;
             InputStreamReader isr = null;
             BufferedReader reader = null;
-            PrintStream writer = null;
+            PrintWriter writer = null;
             try {
                 isr = new InputStreamReader(socket.getInputStream());
                 reader = new BufferedReader(isr);
-                writer = new PrintStream(socket.getOutputStream(), true);
+                writer = new PrintWriter(socket.getOutputStream(), true);
                 while (handling) {
                     final String command = reader.readLine();
                     if (command == null) {
@@ -333,6 +333,7 @@ public class ExchangeNetworkAdapter implements ExchangeAdapter {
                                 final String accountId = scanner.next();
                                 final String symbol = scanner.next();
                                 final int numberOfShares = scanner.nextInt();
+
                                 if (orderType.equals(ProtocolConstants.BUY_ORDER.toString())) {
                                     order = new MarketBuyOrder(accountId, numberOfShares, symbol);
                                 } else {

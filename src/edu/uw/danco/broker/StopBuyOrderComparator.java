@@ -39,7 +39,8 @@ public final class StopBuyOrderComparator implements Comparator<StopBuyOrder> {
         result = o1.getPrice() < o2.getPrice() ? -1 : o1.getPrice() > o2.getPrice() ? 1 : 0;
 
         if (result == 0) {
-            result = o1.compareTo(o2);        }
+            result = o1.compareTo(o2);
+        }
 
         return result;
     }
